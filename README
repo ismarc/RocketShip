@@ -1,0 +1,10 @@
+RocketShip is an LLVM pass designed to generate dot files to present UML activity diagrams based on the bitcode passed to the optimizer.
+
+Use:
+opt -load /path/to/llvm/Release/lib/RocketShip.so -rocketship <filename>.bc > /dev/null
+
+Build Instructions:
+Modify the Makefile to have LEVEL point to the top level directory of your LLVM source directory.
+run ./configure in the LLVM source directory.
+In RocketShip, run make
+RocketShip.so will be output to $LEVEL/Release/lib
