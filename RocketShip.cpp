@@ -18,20 +18,17 @@ using namespace rocketship;
 
 bool
 RocketShip::runOnModule(Module &M) {
+    // Uncomment below to send the LLVM assembly to stderr when run
     M.dump();
+
     /**
      * The moduleIdentifier is used to uniquely identify the chart.
      * Unfortunately, DOT files can't handle any graph names or node
      * names that contain '.'.  so we just swap it out for '_'.
      */
-    /*
     std::string moduleIdentifier = M.getModuleIdentifier();
     std::replace(moduleIdentifier.begin(), moduleIdentifier.end(), '.', '_');
-    _outputFile.open(std::string(moduleIdentifier + ".dot").c_str());
 
-    // Should probably move the graph declaration somewhere else.
-    _outputFile << "digraph " << moduleIdentifier << " {\n";
-    */
     Module::iterator funcStart;
 
     // processFunction generates an entry in _nodes for each contained
@@ -43,27 +40,6 @@ RocketShip::runOnModule(Module &M) {
         processFunction(*funcStart);
     }
 
-    /*
-    // Spit out the node definition and all it's edges for each node
-    // in _nodes.  There will be exactly one entry for each node
-    // displayed.  Check for NULL since it is theoretically possible
-    // that a node entry is NULL because of terminators.
-    for (std::vector<Node*>::iterator it = _nodes.begin();
-         it != _nodes.end();
-         it++) {
-        if ((*it) == NULL) {
-            continue;
-        }
-        
-        emitNode((*it));
-    }
-
-    // And, close out the graph declaration.  Should really wrap the
-    // emission part of the code in its own processor.
-    _outputFile << "}\n";
-
-    _outputFile.close();
-    */
     // Return false to indicate that we didn't alter the AST or module
     // at all.
     return false;
@@ -111,6 +87,10 @@ RocketShip::processFunction(Function &F) {
         // structure.
         generateNodeStructure(funcNode, F);
 
+        // Spit out the node definition and all it's edges for each node
+        // in _nodes.  There will be exactly one entry for each node
+        // displayed.  Check for NULL since it is theoretically possible
+        // that a node entry is NULL because of terminators.
         for (std::vector<Node*>::iterator it = _nodes.begin();
              it != _nodes.end();
              it++) {
@@ -121,6 +101,8 @@ RocketShip::processFunction(Function &F) {
             emitNode((*it));
         }
 
+        // All entries in _nodes have been processed, clear the list
+        // and close out the file.
         _nodes.clear();
         _outputFile << "}";
         _outputFile.close();
@@ -599,7 +581,7 @@ RocketShip::processStoreInstruction(Node* instructionNode,
     std::string label = "";
 
     // Get the value for the left-hand side of the store operation.
-    label = label + getValueName(storeInst->getOperand(1));
+    label = label + getValueName(storeInst->getPointerOperand());
 
     label = label + " := ";
 
@@ -662,7 +644,7 @@ RocketShip::getValueName(Value* value)
         result = getValueName(castInst->getOperand(0));
     }
     else if (LoadInst* loadInst = dyn_cast<LoadInst>(&*value)) {
-        result = getValueName(loadInst->getOperand(0));
+        result = getValueName(loadInst->getPointerOperand());
     }
     else if (SExtInst* sextInst = dyn_cast<SExtInst>(&*value)) {
         result = getValueName(sextInst->getOperand(0));
@@ -674,9 +656,11 @@ RocketShip::getValueName(Value* value)
         result = getValueName(allocaInst->getOperand(0));
     }
     else if (GetElementPtrInst* gepInst = dyn_cast<GetElementPtrInst>(&*value)) {
-        std::string prefix = getValueName(gepInst->getOperand(0));
-        std::string index = getValueName(gepInst->getOperand(1));
-        result = prefix + "[" + index + "]";
+        std::string value = getValueName(gepInst->getPointerOperand());
+
+        std::string index = getValueName(gepInst->getOperand(gepInst->getNumIndices()));
+        value = value + "[" + index + "]";
+        result = value;
     }
     else if (BinaryOperator* binOp = dyn_cast<BinaryOperator>(&*value)) {
         switch (binOp->getOpcode()) {
@@ -706,6 +690,7 @@ RocketShip::getValueName(Value* value)
             result = result + " " + getValueName(binOp->getOperand(1));
         }
     }
+
     if (result.length() == 0) {
         result = value->getType()->getDescription();
     }
