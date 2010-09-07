@@ -653,7 +653,7 @@ RocketShip::getValueName(Value* value)
         result = constant->getValue().toString(10, false);
     }
     else if (AllocaInst* allocaInst = dyn_cast<AllocaInst>(&*value)) {
-        result = getValueName(allocaInst->getOperand(0));
+        result = allocaInst->getAllocatedType()->getDescription();
     }
     else if (GetElementPtrInst* gepInst = dyn_cast<GetElementPtrInst>(&*value)) {
         std::string value = getValueName(gepInst->getPointerOperand());
