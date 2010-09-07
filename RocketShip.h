@@ -129,6 +129,23 @@ namespace rocketship {
                                       StoreInst* storeInst);
 
         /**
+         * Handles switch instructions in the function block.  A
+         * switch instruction indicates a multi-path branch based on
+         * the input value.  The decision node with indicate the value
+         * that is checked and the edge will indicate the branch that
+         * is followed if the value matches.
+         * @param instructionNode The node representing the switch instruction.
+         * @param currentNode The current node prior to the switch instruction.
+         * @param switchInst The internal representation of the switch instruction
+         * @param functionName The name of the function currently being processed
+         *                     (used as part of uniquely identifying blocks).
+         * @return The next node to use in the graph.
+         */
+        Node* processSwitchInstruction(Node* instructionNode,
+                                       Node* currentNode,
+                                       SwitchInst* switchInst,
+                                       std::string functionName);
+        /**
          * Handles all instructions that do not have a special case.  A general
          * instruction is considered an activity and has a label that is defined as:
          * opcode operand(0) operand(1) operand(n).

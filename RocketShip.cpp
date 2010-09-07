@@ -359,6 +359,13 @@ RocketShip::processFunctionBlock(Node* funcNode, Node* currentNode, BasicBlock* 
                                                   currentNode,
                                                   storeInst);
         }
+        // switch statement instructions
+        else if (SwitchInst* switchInst = dyn_cast<SwitchInst>(&*instruction)) {
+            currentNode = processSwitchInstruction(instructionNode,
+                                                   currentNode,
+                                                   switchInst,
+                                                   funcNode->getNodeName());
+        }
         // default
         else {
             // Default instruction handling, if nothing special is to
@@ -599,7 +606,50 @@ RocketShip::processStoreInstruction(Node* instructionNode,
     }
     return instructionNode;
 }
-        
+
+Node*
+RocketShip::processSwitchInstruction(Node* instructionNode,
+                                     Node* currentNode,
+                                     SwitchInst* switchInst,
+                                     std::string functionName)
+{
+    /**
+     * Switch instructions are special case conditional branches.
+     * They compare a single value against "case statements" that
+     * determine which block to execute.
+     */
+    instructionNode->setNodeType(Node::DECISION);
+    std::string label = switchInst->getOpcodeName();
+
+    label = label + " " + getValueName(switchInst->getCondition());
+
+    // Set the default destination
+    BasicBlock* defaultDest = switchInst->getDefaultDest();
+    instructionNode->addNodeEdge(new Edge(functionName +
+                                          std::string(defaultDest->getName()), "default"));
+
+    // Each successor indicates a block to branch to if the specific
+    // value is met.  An edge needs to be added for each potential
+    // branch location with a label indicating the value being met.
+    for (unsigned int i = switchInst->getNumSuccessors() - 1; i > 0; i--) {
+        BasicBlock* destination = switchInst->getSuccessor(i);
+        instructionNode->addNodeEdge(new Edge(functionName +
+                                              std::string(destination->getName()),
+                                              getValueName(switchInst->getCaseValue(i))));
+    }
+
+    instructionNode->setNodeLabel(label);
+
+    _nodes.push_back(instructionNode);
+    char buffer[255];
+    sprintf(buffer, "%d", instructionNode->getNodeId());
+    if (currentNode != NULL) {
+        currentNode->addNodeEdge(new Edge(std::string(buffer)));
+    }
+
+    return instructionNode;
+}
+
 Node*
 RocketShip::processDefaultInstruction(Node* instructionNode,
                                       Node* currentNode,
