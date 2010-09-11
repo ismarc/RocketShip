@@ -13,13 +13,17 @@
 #include <fstream>
 #include <stdio.h>
 
+extern "C" {
+#include <demangle.h>
+}
+
 using namespace llvm;
 using namespace rocketship;
 
 bool
 RocketShip::runOnModule(Module &M) {
     // Uncomment below to send the LLVM assembly to stderr when run
-    M.dump();
+    //M.dump();
 
     /**
      * The moduleIdentifier is used to uniquely identify the chart.
@@ -53,6 +57,8 @@ RocketShip::processFunction(Function &F) {
     // name?
     if (F.size() != 0) {
         std::string functionIdentifier = F.getName();
+        char* result = cplus_demangle(functionIdentifier.c_str(), DMGL_ANSI|DMGL_PARAMS);
+
         std::replace(functionIdentifier.begin(), functionIdentifier.end(), '.', '_');
         _outputFile.open(std::string(functionIdentifier + ".dot").c_str());
 
@@ -63,22 +69,32 @@ RocketShip::processFunction(Function &F) {
         Node* funcNode = new Node(_nodeId++, Node::START);
         funcNode->setNodeName(F.getName());
 
-        std::string label = F.getReturnType()->getDescription();
-        label = label + " " + std::string(F.getName());
-        label = label + "(";
-        std::string arguments = "";
+        std::string label;
         
-        Function::arg_iterator arg;
-        for (arg = F.arg_begin();
-             arg != F.arg_end();
-             arg++) {
-            if (arguments.length() != 0) {
-                arguments = arguments + ", ";
+        if (result != NULL) {
+            label = std::string(result);
+        } else {
+            label = F.getReturnType()->getDescription();
+            label = label + " " + std::string(F.getName());
+            label = label + "(";
+            std::string arguments = "";
+        
+            Function::arg_iterator arg;
+            for (arg = F.arg_begin();
+                 arg != F.arg_end();
+                 arg++) {
+                if (arguments.length() != 0) {
+                    arguments = arguments + ", ";
+                }
+                if (isa<OpaqueType>((*arg).getType())) {
+                    arguments = arguments + "opaque";
+                } else {
+                    arguments = arguments + std::string((*arg).getType()->getDescription());
+                }
+                arguments = arguments + " " + std::string((*arg).getName());
             }
-            arguments = arguments + std::string((*arg).getType()->getDescription());
-            arguments = arguments + " " + std::string((*arg).getName());
+            label = label + arguments + ")";
         }
-        label = label + arguments + ")";
         funcNode->setNodeLabel(label);
         _nodes.push_back(funcNode);
 
@@ -400,21 +416,30 @@ RocketShip::processCallInstruction(Node* instructionNode,
     // A call instruction should theoretically always have a function
     // that was called, but there are cases where the called function
     // hasn't been populated.
+    std::string calledName = "";
+    
     if (callInst->getCalledFunction() != NULL) {
-        label = label + " "
-            + std::string(callInst->getCalledFunction()->getName()) + "(";
+        calledName = callInst->getCalledFunction()->getName();
     }
 
-    // List each operand (values passed to the function) as their
-    // name, constant value or type in that order.
-    for (unsigned int i = 1; i < callInst->getNumOperands(); i++) {
-        if (i != 1) {
-            label = label + ", ";
+    char* demangled = cplus_demangle(calledName.c_str(), DMGL_ANSI|DMGL_PARAMS);
+    if (demangled != NULL) {
+        label = label + " " + std::string(demangled);
+    } else if (calledName.length() > 0) {
+        label = label + " "
+            + std::string(callInst->getCalledFunction()->getName()) + "(";
+
+        // List each operand (values passed to the function) as their
+        // name, constant value or type in that order.
+        for (unsigned int i = 1; i < callInst->getNumOperands(); i++) {
+            if (i != 1) {
+                label = label + ", ";
+            }
+            label = label + getValueName(callInst->getOperand(i));
         }
-        label = label + getValueName(callInst->getOperand(i));
-    }
             
-    label = label + ")";
+        label = label + ")";
+    }
             
     instructionNode->setNodeLabel(label);
                 
@@ -742,7 +767,12 @@ RocketShip::getValueName(Value* value)
     }
 
     if (result.length() == 0) {
-        result = value->getType()->getDescription();
+        if (isa<OpaqueType>(value->getType())) {
+            result = "opaque";
+        }
+        else {
+            result = value->getType()->getDescription();
+        }
     }
 
     return result;
