@@ -298,9 +298,6 @@ RocketShip::processFunctionBlocks(Node* currentNode, BasicBlock* block)
         }
     }
 
-    if (block->hasName()) {
-        errs() << block->getName() << "\n";
-    }
     _processedBlocks.insert(std::pair<BasicBlock*, int>(block, -1));
     
     BasicBlock::iterator instruction;
