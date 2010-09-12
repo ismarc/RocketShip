@@ -1,6 +1,7 @@
 #include "Node.h"
 
 #include <vector>
+#include <map>
 #include <fstream>
 
 #include "llvm/Function.h"
@@ -58,6 +59,7 @@ namespace rocketship {
          */
         void emitNode(Node* node);
 
+        void processFunctionBlocks(Node* funcNode, BasicBlock* block);
         /**
          * Processes a single block for a function.  Creates a node for each appropriate
          * instruction in the block and edges connecting them.  The node is appended to
@@ -81,6 +83,8 @@ namespace rocketship {
                                      Node* currentNode,
                                      CallInst* callInst);
 
+        std::string getConditionalBranchLabel(BranchInst* instruction);
+        std::string getInvokeInstLabel(InvokeInst* instruction);
         /**
          * Handles a conditional branch instruction encountered in the function block.
          * Conditional branch instructions represent a branch based on a comparison that
@@ -180,6 +184,13 @@ namespace rocketship {
          */
         std::vector<Node*> _nodes;
 
+        /**
+         * Stores the list of blocks that have been processed for the
+         * current function.
+         */
+        std::map<BasicBlock*, int> _processedBlocks;
+
+        std::map<int, BasicBlock*> _pendingEdges;
         /**
          * Stores the next id to use for a node.  Since few nodes will have unique names,
          * and DOT files require each node to have a unique name, the name of the node is

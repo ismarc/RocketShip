@@ -23,7 +23,7 @@ public:
      * @param id The unique name the edge points to.
      * @param label The label to use for the edge.
      */
-    Edge(std::string id, std::string label="");
+    Edge(std::string id="-1", std::string label="");
     ~Edge();
 
     /**

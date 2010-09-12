@@ -73,6 +73,7 @@ RocketShip::processFunction(Function &F) {
         
         if (result != NULL) {
             label = std::string(result);
+            free(result);
         } else {
             label = F.getReturnType()->getDescription();
             label = label + " " + std::string(F.getName());
@@ -133,18 +134,28 @@ RocketShip::generateNodeStructure(Node* funcNode, Function &F)
     // This makes sense since each point of processing is essentially
     // "look-ahead", as in nodes aren't added to the structure until
     // they have been linked to by a previous node.
-    Node* currentNode = NULL;
     Function::iterator block;
 
-    // Each block should be processed, having the currentNode passed
-    // in.  currentNode may be NULL, or may have another node as its
-    // contents.  In practice, each block has a branch instruction as
-    // the last entry so currentNode will always result in a NULL
-    // value between processFunctionBlock calls.
-    for (block = F.begin();
-         block != F.end();
-         block++) {
-        processFunctionBlock(funcNode, currentNode, &(*block));
+    processFunctionBlocks(funcNode, &(*(F.begin())));
+
+    // Each node that had an edge prior to the block being completed
+    // needs to have the final edges covered.
+    for (std::map<int, BasicBlock*>::iterator it = _pendingEdges.begin();
+         it != _pendingEdges.end();
+         it++) {
+        std::map<BasicBlock*, int>::iterator bb = _processedBlocks.find(it->second);
+        if (bb != _processedBlocks.end() &&
+            bb->second != -1) {
+            for (unsigned int i = 0; i < _nodes.size(); i++) {
+                if (_nodes[i] != NULL &&
+                    _nodes[i]->getNodeId() == it->first) {
+                    char buffer[255];
+                    sprintf(buffer, "%d", bb->second);
+                    _nodes[i]->addNodeEdge(new Edge(buffer));
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -261,6 +272,168 @@ RocketShip::emitNode(Node* node)
 }
 
 void
+RocketShip::processFunctionBlocks(Node* currentNode, BasicBlock* block)
+{
+    // Recursive decent style processing of blocks
+
+    // Interrupt processing if we've seen this block before
+    for (std::map<BasicBlock*, int>::iterator it = _processedBlocks.begin();
+         it != _processedBlocks.end();
+         it++) {
+        if (it->first == block) {
+            if (currentNode != NULL){
+                char buffer[255];
+                sprintf(buffer, "%d", it->second);
+                if (it->second == -1) {
+                    _pendingEdges.insert(std::pair<int, BasicBlock*>
+                                         (currentNode->getNodeId(),
+                                          block));
+                } else {
+                    currentNode->addNodeEdge(new Edge(std::string(buffer)));
+                }
+            }
+
+            currentNode = NULL;
+            return;
+        }
+    }
+
+    if (block->hasName()) {
+        errs() << block->getName() << "\n";
+    }
+    _processedBlocks.insert(std::pair<BasicBlock*, int>(block, -1));
+    
+    BasicBlock::iterator instruction;
+    for (instruction = block->begin();
+         instruction != block->end();
+         instruction++) {
+        Node* instructionNode = new Node(_nodeId++);
+
+        if (currentNode == NULL) {
+            currentNode = instructionNode;
+        }
+
+        if (CallInst* callInst = dyn_cast<CallInst>(&*instruction)) {
+            currentNode = processCallInstruction(instructionNode, currentNode, callInst);
+            std::map<BasicBlock*, int>::iterator bb =
+                _processedBlocks.find(block);
+            if (bb == _processedBlocks.end() ||
+                bb->second == -1) {
+                _processedBlocks[block] = instructionNode->getNodeId();
+            }
+        }
+        else if (BranchInst* branchInst = dyn_cast<BranchInst>(&*instruction)) {
+            if (branchInst->isConditional()) {
+                if (currentNode != NULL) {
+                    char buffer[255];
+                    sprintf(buffer, "%d", instructionNode->getNodeId());
+                    currentNode->addNodeEdge(new Edge(std::string(buffer)));
+                }
+                instructionNode->setNodeType(Node::DECISION);
+                instructionNode->setNodeLabel(getConditionalBranchLabel(branchInst));
+                _nodes.push_back(instructionNode);
+                BasicBlock *Dest1 = dyn_cast<BasicBlock>(branchInst->getOperand(1));
+                BasicBlock *Dest2 = dyn_cast<BasicBlock>(branchInst->getOperand(2));
+                currentNode = instructionNode;
+                processFunctionBlocks(currentNode, Dest1);
+                currentNode = instructionNode;
+                processFunctionBlocks(currentNode, Dest2);
+                std::map<BasicBlock*, int>::iterator bb =
+                    _processedBlocks.find(block);
+                if (bb == _processedBlocks.end() ||
+                    bb->second == -1) {
+                    _processedBlocks[block] = instructionNode->getNodeId();
+                }
+            } else {
+                BasicBlock *Dest = dyn_cast<BasicBlock>(branchInst->getOperand(0));
+                processFunctionBlocks(currentNode, Dest);
+            }
+        }
+        else if (InvokeInst* invokeInst = dyn_cast<InvokeInst>(&*instruction)) {
+            if (currentNode != NULL) {
+                char buffer[255];
+                sprintf(buffer, "%d", instructionNode->getNodeId());
+                currentNode->addNodeEdge(new Edge(std::string(buffer)));
+            }
+            instructionNode->setNodeLabel(getInvokeInstLabel(invokeInst));
+            _nodes.push_back(instructionNode);
+
+            BasicBlock *Dest1 = invokeInst->getNormalDest();
+            BasicBlock *Dest2 = invokeInst->getUnwindDest();
+            currentNode = instructionNode;
+            if (Dest1 != NULL) {
+                processFunctionBlocks(currentNode, Dest1);
+            }
+            currentNode = instructionNode;
+            if (Dest2 != NULL) {
+                processFunctionBlocks(currentNode, Dest2);
+            }
+            std::map<BasicBlock*, int>::iterator bb =
+                _processedBlocks.find(block);
+            if (bb == _processedBlocks.end() ||
+                bb->second == -1) {
+                _processedBlocks[block] = instructionNode->getNodeId();
+            }
+        }
+        else if (SwitchInst* switchInst = dyn_cast<SwitchInst>(&*instruction)) {
+            if (currentNode != NULL) {
+                char buffer[255];
+                sprintf(buffer, "%d", instructionNode->getNodeId());
+                currentNode->addNodeEdge(new Edge(std::string(buffer)));
+            }
+            instructionNode->setNodeType(Node::DECISION);
+            std::string label = switchInst->getOpcodeName();
+
+            label = label + " " + getValueName(switchInst->getCondition());
+            instructionNode->setNodeLabel(label);
+            _nodes.push_back(instructionNode);
+            BasicBlock* defaultDest = switchInst->getDefaultDest();
+            currentNode = instructionNode;
+            processFunctionBlocks(currentNode, defaultDest);
+            for (unsigned int i = switchInst->getNumSuccessors() - 1; i > 0; i--) {
+                BasicBlock* destination = switchInst->getSuccessor(i);
+                currentNode = instructionNode;
+                processFunctionBlocks(currentNode, destination);
+            }
+            std::map<BasicBlock*, int>::iterator bb =
+                _processedBlocks.find(block);
+            if (bb == _processedBlocks.end() ||
+                bb->second == -1) {
+                _processedBlocks[block] = instructionNode->getNodeId();
+            }
+        }
+        else if (isa<CmpInst>(&*instruction) ||
+                 isa<AllocaInst>(&*instruction) ||
+                 isa<CastInst>(&*instruction) ||
+                 isa<LoadInst>(&*instruction) ||
+                 isa<BinaryOperator>(&*instruction) ||
+                 isa<GetElementPtrInst>(&*instruction)) {
+            // do the nothing dance.
+            continue;
+        }
+        else if (StoreInst* storeInst = dyn_cast<StoreInst>(&*instruction)) {
+            currentNode = processStoreInstruction(instructionNode, currentNode, storeInst);
+            std::map<BasicBlock*, int>::iterator bb =
+                _processedBlocks.find(block);
+            if (bb == _processedBlocks.end() ||
+                bb->second == -1) {
+                _processedBlocks[block] = instructionNode->getNodeId();
+            }
+        }
+        else {
+            currentNode = processDefaultInstruction(instructionNode, currentNode,
+                                                    instruction);
+            std::map<BasicBlock*, int>::iterator bb =
+                _processedBlocks.find(block);
+            if (bb == _processedBlocks.end() ||
+                bb->second == -1) {
+                _processedBlocks[block] = instructionNode->getNodeId();
+            }
+        }
+    }
+}
+ 
+void
 RocketShip::processFunctionBlock(Node* funcNode, Node* currentNode, BasicBlock* block)
 {
     // The blockNode corresponds to the label definition of a block.
@@ -275,11 +448,20 @@ RocketShip::processFunctionBlock(Node* funcNode, Node* currentNode, BasicBlock* 
     // by.  The result becomes:
     // <function_name><basic_block_id> [label="<basic_block_id>"]
     // This allows the block to be uniquely identified between 
-    // functions.
-    blockNode->setNodeName(funcNode->getNodeName()
-                           + std::string(block->getName()));
-    blockNode->setNodeLabel(block->getName());
-    _nodes.push_back(blockNode);
+    // functions.  This is defeated if the BasicBlock is anonymous.
+    // In that instance, don't add this node and instead, set the
+    // current node the function.
+    if (getValueName(block).length() > 0 &&
+        getValueName(block) != "label") {
+        blockNode->setNodeName(funcNode->getNodeName()
+                               + std::string(getValueName(block)));//->getName()));
+        blockNode->setNodeLabel(getValueName(block));//->getName());
+        _nodes.push_back(blockNode);
+    } else {
+        if (currentNode == NULL) {
+            currentNode = funcNode;
+        }
+    }
 
     // Currently, currentNode will always be NULL when it reaches
     // this point.  However, this behavior may change.
@@ -291,7 +473,9 @@ RocketShip::processFunctionBlock(Node* funcNode, Node* currentNode, BasicBlock* 
     // there is not an edge leading from the function start yet, this
     // block becomes the first edge.
     if (funcNode->getNodeEdges().size() == 0) {
-        funcNode->addNodeEdge(new Edge(currentNode->getNodeName()));
+        if (funcNode != currentNode) {
+            funcNode->addNodeEdge(new Edge(currentNode->getNodeName()));
+        }
     }
 
     // Each instruction needs to be processed.  Some instructions do
@@ -425,6 +609,7 @@ RocketShip::processCallInstruction(Node* instructionNode,
     char* demangled = cplus_demangle(calledName.c_str(), DMGL_ANSI|DMGL_PARAMS);
     if (demangled != NULL) {
         label = label + " " + std::string(demangled);
+        free(demangled);
     } else if (calledName.length() > 0) {
         label = label + " "
             + std::string(callInst->getCalledFunction()->getName()) + "(";
@@ -458,6 +643,116 @@ RocketShip::processCallInstruction(Node* instructionNode,
     // An edge has been added to the instruction node so it should be
     // considered the current node.
     return instructionNode;
+}
+
+std::string
+RocketShip::getConditionalBranchLabel(BranchInst* instruction)
+{
+    std::string label = instruction->getOpcodeName();
+
+    if (CmpInst *condition = dyn_cast<CmpInst>(instruction->getCondition())) {
+        label = "";
+
+        // Determine the name to use for the first value for comparison
+        label = getValueName(condition->getOperand(0));
+
+        // The comparison predicate is the method in which the two
+        // values are compared. ICMP is integer comparison, FCMP is
+        // floating point comparison.  For the purposes of generating
+        // the graph, the difference between the two is meaningless.
+        // Instead, simply convert the type of comparison to general
+        // C-like comparison operators.
+        switch (condition->getPredicate()) {
+        // Equality comparison
+        case CmpInst::ICMP_EQ:
+        case CmpInst::FCMP_OEQ:
+            label = label + " == ";
+            break;
+        // Inequality comparison
+        case CmpInst::ICMP_NE:
+        case CmpInst::FCMP_ONE:
+            label = label + " != ";
+            break;
+        // Greater than signed/unsigned comparison
+        case CmpInst::ICMP_UGT:
+        case CmpInst::ICMP_SGT:
+        case CmpInst::FCMP_OGT:
+            label = label + " > ";
+            break;
+        // Greater than or equal signed/unsigned comparison
+        case CmpInst::ICMP_UGE:
+        case CmpInst::ICMP_SGE:
+        case CmpInst::FCMP_OGE:
+            label = label + " >= ";
+            break;
+        // Less than signed/unsigned comparison
+        case CmpInst::ICMP_ULT:
+        case CmpInst::ICMP_SLT:
+        case CmpInst::FCMP_OLT:
+            label = label + " < ";
+            break;
+        // Less than or equal signed/unsigned comparison
+        case CmpInst::ICMP_ULE:
+        case CmpInst::ICMP_SLE:
+        case CmpInst::FCMP_OLE:
+            label = label + " <= ";
+            break;
+        // Floating point comparisons that haven't been mapped into
+        // the current model due to them specifying handling of NaN
+        // and Infinity values.  Should decide about these eventually
+        // and add them.
+        case CmpInst::FCMP_FALSE:
+        case CmpInst::FCMP_ORD:
+        case CmpInst::FCMP_UNO:
+        case CmpInst::FCMP_UEQ:
+        case CmpInst::FCMP_UGT:
+        case CmpInst::FCMP_UGE:
+        case CmpInst::FCMP_ULT:
+        case CmpInst::FCMP_ULE:
+        case CmpInst::FCMP_UNE:
+        case CmpInst::FCMP_TRUE:
+            break;
+        default:
+            break;
+        }
+
+        // Add the second value that is being compared against.
+        label = label + getValueName(condition->getOperand(1));
+    }
+
+    return label;
+}
+
+std::string
+RocketShip::getInvokeInstLabel(InvokeInst* instruction)
+{
+    std::string label = "invoke";
+    std::string calledName = "";
+
+    if (instruction->getCalledFunction() != NULL) {
+        calledName = instruction->getCalledFunction()->getName();
+    }
+
+    if (calledName.length() > 0) {
+        char* demangled = cplus_demangle(calledName.c_str(), DMGL_ANSI|DMGL_PARAMS);
+
+        if (demangled != NULL) {
+            label = label + " " + std::string(demangled);
+            free(demangled);
+        } else {
+            label = label + " " + std::string(instruction->getCalledFunction()->getName())
+                + "(";
+
+            for (unsigned int i = 1; i < instruction->getNumOperands(); i++) {
+                if (i != 1) {
+                    label = label + ", ";
+                }
+                label = label + getValueName(instruction->getOperand(i));
+            }
+        }
+    }
+    
+    return label;
 }
 
 Node*
@@ -590,7 +885,7 @@ RocketShip::processUnconditionalBranch(Node* instructionNode,
     BasicBlock *Dest = dyn_cast<BasicBlock>(branchInst->getOperand(0));
     if (currentNode != NULL) {
         currentNode->addNodeEdge(new Edge(functionName
-                                          + std::string(Dest->getName())));
+                                          + std::string(getValueName(Dest))));//->getName())));
     }
 
     // No new nodes have been appended to the list, so the current
@@ -712,7 +1007,14 @@ RocketShip::getValueName(Value* value)
     std::string result;
     
     if (value->hasName()) {
-        return value->getName();
+        result = value->getName();
+
+        char* demangled = cplus_demangle(result.c_str(), DMGL_ANSI|DMGL_PARAMS);
+        if (demangled != NULL) {
+            result = std::string(demangled);
+            free(demangled);
+        }
+        return result;
     }
 
     if (CastInst* castInst = dyn_cast<CastInst>(&*value)) {
@@ -767,12 +1069,7 @@ RocketShip::getValueName(Value* value)
     }
 
     if (result.length() == 0) {
-        if (isa<OpaqueType>(value->getType())) {
-            result = "opaque";
-        }
-        else {
-            result = value->getType()->getDescription();
-        }
+        result = value->getType()->getDescription();
     }
 
     return result;
