@@ -1,6 +1,6 @@
 #include "Block.h"
 
-Block::Block(unsigned int identifier, llvm::BasicBlock* block, std::string label) :
+Block::Block(unsigned int identifier, std::string label) :
     _id(identifier),
     _label(label)
 {
@@ -8,6 +8,12 @@ Block::Block(unsigned int identifier, llvm::BasicBlock* block, std::string label
 
 Block::~Block()
 {
+}
+
+void
+Block::processBlock()
+{
+
 }
 
 unsigned int
