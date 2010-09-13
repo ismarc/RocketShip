@@ -12,8 +12,14 @@
 # define   	NODE_H_
 
 #include "Edge.h"
+
+#include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>
+
+class Node;
+typedef boost::shared_ptr<Node> pNode;
+typedef std::vector<pNode> Nodes;
 
 /**
  * Handles data, types and operations for all nodes in a graph.

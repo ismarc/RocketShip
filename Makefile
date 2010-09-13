@@ -15,7 +15,9 @@ LOADABLE_MODULE = 1
 
 USEDLIBS = iberty.a
 
+CXXFLAGS += -I/usr/include/boost/
+CXXFLAGS += -DHAVE_DECL_BASENAME=1
+
 # Include the makefile implementation stuff
 include $(LEVEL)/Makefile.common
 
-CXXFLAGS = -DHAVE_DECL_BASENAME=1
