@@ -13,9 +13,12 @@
 
 #include "Edge.h"
 
+#include "llvm/BasicBlock.h"
+
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <vector>
+#include <map>
 
 class Node;
 typedef boost::shared_ptr<Node> pNode;
@@ -105,6 +108,8 @@ public:
      * @param edge The edge to remove.
      */
     void removeNodeEdge(Edge* edge);
+
+    std::map<std::string, llvm::BasicBlock*> getBlockEdges() {return std::map<std::string, llvm::BasicBlock*>(); }
 private:
     // Stores the associated unique id
     int _nodeId;

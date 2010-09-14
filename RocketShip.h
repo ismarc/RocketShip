@@ -1,4 +1,5 @@
 #include "Node.h"
+#include "Block.h"
 
 #include <vector>
 #include <map>
@@ -41,7 +42,9 @@ namespace rocketship {
          * @param F The function to process.
          */
         void processFunction(Function &F);
-
+        void processBlock(BasicBlock* bblock, pBlock block);
+        void processInstruction(Instruction* instruction, pNode node);
+        void processFunctionOld(Function &F);
         /**
          * Generates the node structure of the given function with the supplied node
          * as the base node.  Each block in the function is processed in the order it
@@ -197,7 +200,8 @@ namespace rocketship {
          * the next available integer id.
          */
         int _nodeId;
-
+        int _blockId;
+        std::map<BasicBlock*, pBlock> _blocks;
         /**
          * The output filestream to send graph data to.
          */

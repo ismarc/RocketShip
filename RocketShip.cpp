@@ -21,7 +21,8 @@ using namespace llvm;
 using namespace rocketship;
 
 bool
-RocketShip::runOnModule(Module &M) {
+RocketShip::runOnModule(Module &M) 
+{
     // Uncomment below to send the LLVM assembly to stderr when run
     //M.dump();
 
@@ -51,6 +52,54 @@ RocketShip::runOnModule(Module &M) {
 
 void
 RocketShip::processFunction(Function &F) {
+    _nodeId = 0;
+    _blockId = 0;
+    _blocks.clear();
+    std::vector<BasicBlock*> blockList;
+    
+    for (Function::iterator bblock = F.begin();
+         bblock != F.end();
+         bblock++) {
+        pBlock block(new Block(_nodeId++, bblock->getName()));
+        _blocks.insert(std::pair<BasicBlock*, pBlock>(bblock, block));
+        blockList.push_back(bblock);
+        processBlock(bblock, block);
+    }
+
+    for (std::map<BasicBlock*, pBlock>::iterator it = _blocks.begin();
+         it != _blocks.end();
+         it++) {
+        it->second->processNodes(_blocks);
+    }
+}
+
+void
+RocketShip::processBlock(BasicBlock* bblock, pBlock block)
+{
+    for (BasicBlock::iterator instruction = bblock->begin();
+         instruction != bblock->end();
+         instruction++) {
+        pNode node(new Node(_nodeId++));
+        block->appendNode(node);
+        processInstruction(instruction, node);
+    }
+}
+
+void
+RocketShip::processInstruction(Instruction* instruction, pNode node)
+{
+    std::string label = instruction->getOpcodeName();
+
+    for (unsigned int i = 0; i < instruction->getNumOperands(); i++) {
+        label = label + " "
+            + std::string(instruction->getOperand(i)->getName());
+    }
+
+    node->setNodeLabel(label);
+}
+
+void
+RocketShip::processFunctionOld(Function &F) {
     // F.size() corresponds to the number of BasicBlocks contained in
     // the function.  This excludes functions that don't have any
     // BasicBlocks.  Why draw a boring chart with only the function

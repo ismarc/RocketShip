@@ -15,6 +15,10 @@
 
 #include <boost/shared_ptr.hpp>
 #include <vector>
+#include <map>
+
+class Block;
+typedef boost::shared_ptr<Block> pBlock;
 
 /**
  * Represents a block within the file.  A block is made up of a series of
@@ -66,6 +70,8 @@ public:
      * @param node The node to append to the list.
      */
     void appendNode(pNode node);
+
+    void processNodes(std::map<llvm::BasicBlock*, pBlock> blocks);
 private:
     /**
      * The unique identifier for this Block.
