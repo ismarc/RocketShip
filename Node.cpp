@@ -99,3 +99,15 @@ Node::removeNodeEdge(Edge* edge)
         }
     }
 }
+
+void
+Node::addBlockEdge(llvm::BasicBlock* block, std::string label)
+{
+    _blockEdges.insert(std::pair<std::string, llvm::BasicBlock*>(label, block));
+}
+
+std::map<std::string, llvm::BasicBlock*>
+Node::getBlockEdges()
+{
+    return _blockEdges;
+}

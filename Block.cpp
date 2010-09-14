@@ -57,11 +57,13 @@ Block::processNodes(std::map<llvm::BasicBlock*, pBlock> blocks)
             sprintf(buffer, "%d", _nodes[i]->getNodeId());
             _nodes[i]->addNodeEdge(new Edge(buffer));
         } else {
-            std::map<std::string, llvm::BasicBlock*> mapping = _nodes[i]->getBlockEdges();
+            std::map<std::string, llvm::BasicBlock*> mapping =
+                _nodes[i]->getBlockEdges();
             for (std::map<std::string, llvm::BasicBlock*>::iterator it = mapping.begin();
                  it != mapping.end();
                  it++) {
-                std::map<llvm::BasicBlock*, pBlock>::iterator entry = blocks.find(it->second);
+                std::map<llvm::BasicBlock*, pBlock>::iterator entry =
+                    blocks.find(it->second);
                 if (entry != blocks.end()) {
                     char buffer[255];
                     sprintf(buffer, "%d", entry->second->getId());
