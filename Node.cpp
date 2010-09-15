@@ -68,6 +68,12 @@ Node::setNodeLabel(std::string value)
 }
 
 void
+Node::setInstruction(llvm::Instruction* instruction)
+{
+    _instruction = instruction;
+}
+
+void
 Node::addNodeEdge(Edge* edge)
 {
     // Edges pointing to the same location are not allowed.  Each edge

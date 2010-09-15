@@ -97,6 +97,8 @@ public:
      * @param value the value to assign to the node.
      */
     void setNodeLabel(std::string value);
+    void setInstruction(llvm::Instruction* instruction);
+    
     /**
      * Add an edge leading from the node.  Each edge from the node
      * must lead to a distinct node (e.g., no duplicates).
@@ -136,6 +138,7 @@ private:
     // Stores each Edge leading from the node.
     std::vector<Edge*> _edges;
     std::map<std::string, llvm::BasicBlock*> _blockEdges;
+    llvm::Instruction* _instruction;
 };
 
 #endif 	    /* !NODE_H_ */

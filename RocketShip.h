@@ -177,7 +177,13 @@ namespace rocketship {
          * returns an empty string.
          */
         std::string getValueName(Value* value);
+        std::string getDemangledName(std::string name);
+        std::string getLabelForNode(Instruction* instruction);
 
+        std::string getCallInstructionLabel(CallInst* instruction);
+        std::string getUnconditionalBranchLabel(BranchInst* instruction) { return "";}
+        std::string getSwitchInstLabel(SwitchInst* instruction) { return "";}
+        std::string getStoreInstLabel(StoreInst* instruction) { return "";}
         /**
          * Stores the list of nodes to draw in the graph.  DOT file formats use a
          * labelling mechanism so the ordering of entries in _nodes doesn't matter.  This

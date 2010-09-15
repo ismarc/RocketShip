@@ -88,6 +88,9 @@ RocketShip::processBlock(BasicBlock* bblock, pBlock block)
 void
 RocketShip::processInstruction(Instruction* instruction, pNode node)
 {
+    node->setInstruction(instruction);
+    node->setNodeLabel(getLabelForNode(instruction));
+    
     std::string label = instruction->getOpcodeName();
 
     for (unsigned int i = 0; i < instruction->getNumOperands(); i++) {
@@ -692,6 +695,38 @@ RocketShip::processCallInstruction(Node* instructionNode,
 }
 
 std::string
+RocketShip::getCallInstructionLabel(CallInst* instruction)
+{
+    std::string result = instruction->getOpcodeName();
+    std::string calledName = "";
+
+    if (instruction->getCalledFunction() != NULL) {
+        calledName = instruction->getCalledFunction()->getName();
+    }
+
+    std::string resultName = getDemangledName(calledName);
+
+    result = result + " " + resultName;
+
+    if (calledName.compare(resultName) == 0) {
+        result = result + " "
+            + std::string(instruction->getCalledFunction()->getName()) + "(";
+
+        for (unsigned int i = 1; i < instruction->getNumOperands(); i++) {
+            if (i != 1) {
+                result = result + ", ";
+            }
+
+            result = result + getValueName(instruction->getOperand(i));
+        }
+
+        result = result + ")";
+    }
+ 
+    return result;
+}
+
+std::string
 RocketShip::getConditionalBranchLabel(BranchInst* instruction)
 {
     std::string label = instruction->getOpcodeName();
@@ -1118,6 +1153,98 @@ RocketShip::getValueName(Value* value)
         result = value->getType()->getDescription();
     }
 
+    return result;
+}
+
+std::string
+RocketShip::getDemangledName(std::string name)
+{
+    std::string result;
+    char* demangled = cplus_demangle(name.c_str(), DMGL_ANSI|DMGL_PARAMS);
+
+    if (demangled != NULL) {
+        result = std::string(demangled);
+        free(demangled);
+    } else {
+        result = name;
+    }
+
+    return result;
+}
+
+std::string
+RocketShip::getLabelForNode(Instruction* instruction)
+{
+    std::string result = "";
+
+    // Operations that have no display label
+    if (isa<CmpInst>(&*instruction) ||
+        isa<AllocaInst>(&*instruction) ||
+        isa<CastInst>(&*instruction) ||
+        isa<LoadInst>(&*instruction) ||
+        isa<BinaryOperator>(&*instruction) ||
+        isa<GetElementPtrInst>(&*instruction)) {
+        result = "";
+        // Comparison instructions are not displayed at all.  The
+        // conditional branch instructions link to the comparison
+        // instruction associated.  The decision node for a
+        // conditional branch then displays the actual comparison
+        // being made.
+
+        // Allocation instructions are currently not displayed.
+        // In the future, this should probably be modified to show
+        // what memory is being allocated for each "thing".
+
+        // Bitcast instructions cast from type A to type B but
+        // guarantee there is no change in the value.  The
+        // operation is not necessary to display in the graph.
+
+        // Load instructions pull a value from memory.  This is
+        // inconsequential for every language source except for
+        // assembly.
+
+        // Binary Operators are things like mul, (s|u)div, etc.
+        // These values are assigned or used later, so they do not
+        // need explicit display.
+
+        // GetElementPtrInst references an index in a pointer.
+        // This indexing will be referenced by other operations,
+        // so it is redundant to display the box.
+    }
+    // Call Instructions
+    else if (CallInst* callInst = dyn_cast<CallInst>(&*instruction)) {
+        result = getCallInstructionLabel(callInst);
+    }
+    // Branch Instructions
+    else if (BranchInst* branch = dyn_cast<BranchInst>(&*instruction)) {
+        if (branch->isConditional()) {
+            result = getConditionalBranchLabel(branch);
+        } else {
+            result = getUnconditionalBranchLabel(branch);
+        }
+    }
+    // Invoke Instructions
+    else if (InvokeInst* invoke = dyn_cast<InvokeInst>(&*instruction)) {
+        result = getInvokeInstLabel(invoke);
+    }
+    // Switch Instructions
+    else if (SwitchInst* switchInstruction = dyn_cast<SwitchInst>(&*instruction)) {
+        result = getSwitchInstLabel(switchInstruction);
+    }
+    // Store Instructions
+    else if (StoreInst* store = dyn_cast<StoreInst>(&*instruction)) {
+        result = getStoreInstLabel(store);
+    }
+    // Default handling
+    else {
+        result = instruction->getOpcodeName();
+
+        for (unsigned int i = 0; i < instruction->getNumOperands(); i++) {
+            result = result + " "
+                + std::string(instruction->getOperand(i)->getName());
+        }
+    }
+    
     return result;
 }
 
