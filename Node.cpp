@@ -1,7 +1,10 @@
 #include "Node.h"
+#include "RocketShip.h"
 
-Node::Node(int id, Type type) :
-    _nodeId(id),
+#include "llvm/Instructions.h"
+
+Node::Node(int identifier, Type type) :
+    _nodeId(identifier),
     _nodeType(type),
     _nodeName("")
 {
@@ -106,14 +109,44 @@ Node::removeNodeEdge(Edge* edge)
     }
 }
 
-void
-Node::addBlockEdge(llvm::BasicBlock* block, std::string label)
-{
-    _blockEdges.insert(std::pair<std::string, llvm::BasicBlock*>(label, block));
-}
-
 std::map<std::string, llvm::BasicBlock*>
 Node::getBlockEdges()
 {
-    return _blockEdges;
+    std::map<std::string, llvm::BasicBlock*> result;
+
+    // Get Branch Instruction edges
+    if (llvm::BranchInst* instruction = llvm::dyn_cast<llvm::BranchInst>(&*_instruction)) {
+        if (instruction->isConditional()) {
+            setNodeType(Node::DECISION);
+            llvm::BasicBlock *Dest1 = llvm::dyn_cast<llvm::BasicBlock>(instruction->getOperand(1));
+            llvm::BasicBlock *Dest2 = llvm::dyn_cast<llvm::BasicBlock>(instruction->getOperand(2));
+
+            result.insert(std::pair<std::string, llvm::BasicBlock*>("false", Dest1));
+            result.insert(std::pair<std::string, llvm::BasicBlock*>("true", Dest2));
+        } else {
+            llvm::BasicBlock *Dest = llvm::dyn_cast<llvm::BasicBlock>(instruction->getOperand(0));
+            result.insert(std::pair<std::string, llvm::BasicBlock*>("", Dest));
+        }
+    }
+    // Get Switch instruction edges
+    else if (llvm::SwitchInst* instruction = llvm::dyn_cast<llvm::SwitchInst>(&*_instruction)) {
+        setNodeType(Node::DECISION);
+        llvm::BasicBlock *defaultDest = instruction->getDefaultDest();
+        result.insert(std::pair<std::string, llvm::BasicBlock*>("default",defaultDest));
+
+        for (unsigned int i = instruction->getNumSuccessors() - 1; i > 0; i--) {
+            llvm::BasicBlock* destination = instruction->getSuccessor(i);
+            std::string label = rocketship::RocketShip::getValueName(instruction->getCaseValue(i));
+            result.insert(std::pair<std::string, llvm::BasicBlock*>(label, destination));
+        }
+    }
+    // Get Invoke instruction edges
+    else if (llvm::InvokeInst* instruction = llvm::dyn_cast<llvm::InvokeInst>(&*_instruction)) {
+        llvm::BasicBlock *normal = instruction->getNormalDest();
+        llvm::BasicBlock *unwind = instruction->getUnwindDest();
+
+        result.insert(std::pair<std::string, llvm::BasicBlock*>("unwind", unwind));
+        result.insert(std::pair<std::string, llvm::BasicBlock*>("", normal));
+    }
+    return result;
 }

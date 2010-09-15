@@ -55,6 +55,8 @@ RocketShip::processFunction(Function &F) {
     _nodeId = 0;
     _blockId = 0;
     _blocks.clear();
+    _pnodes.clear();
+    
     std::vector<BasicBlock*> blockList;
     
     for (Function::iterator bblock = F.begin();
@@ -70,7 +72,34 @@ RocketShip::processFunction(Function &F) {
          it != _blocks.end();
          it++) {
         it->second->processNodes(_blocks);
+        Nodes nodes = it->second->getNodes();
+        for (Nodes::iterator node = nodes.begin();
+             node != nodes.end();
+             node++) {
+            _pnodes.push_back(*node);
+        }
     }
+
+    std::string functionIdentifier = F.getName();
+    char* result = cplus_demangle(functionIdentifier.c_str(), DMGL_ANSI|DMGL_PARAMS);
+
+    std::replace(functionIdentifier.begin(), functionIdentifier.end(), '.', '_');
+    _outputFile.open(std::string(functionIdentifier + ".dot").c_str());
+
+    _outputFile << "digraph " << functionIdentifier << " {\n";
+    
+    for (Nodes::iterator it = _pnodes.begin();
+         it != _pnodes.end();
+         it++) {
+        if ((*it) == NULL) {
+            continue;
+        }
+        
+        emitNode(&(*(*it)));
+    }
+
+    _outputFile << "}";
+    _outputFile.close();
 }
 
 void
@@ -90,15 +119,6 @@ RocketShip::processInstruction(Instruction* instruction, pNode node)
 {
     node->setInstruction(instruction);
     node->setNodeLabel(getLabelForNode(instruction));
-    
-    std::string label = instruction->getOpcodeName();
-
-    for (unsigned int i = 0; i < instruction->getNumOperands(); i++) {
-        label = label + " "
-            + std::string(instruction->getOperand(i)->getName());
-    }
-
-    node->setNodeLabel(label);
 }
 
 void
@@ -259,7 +279,6 @@ RocketShip::emitNode(Node* node)
     // to return an empty string rather than NULL if a label hasn't
     // been assigned.
     _outputFile << " [label=\"" << node->getNodeLabel() << "\"";
-
     // Emit the shape to draw for the node.  To match the graphs,
     // start should technically be a filled circle with no name, end
     // should be a filled circle with a concentric circle with no
@@ -315,10 +334,11 @@ RocketShip::emitNode(Node* node)
         // the unique integer id of the node or a name associated with
         // it.
         _outputFile << (*i)->getId();
-
+        
         // The label associated with the edge, typically empty but is
         // currently true/false for edges leading from decision nodes.
         _outputFile << "[label=\"" << (*i)->getLabel() << "\"]";
+
         _outputFile << "\n";
     }
 }
@@ -708,9 +728,9 @@ RocketShip::getCallInstructionLabel(CallInst* instruction)
 
     result = result + " " + resultName;
 
-    if (calledName.compare(resultName) == 0) {
-        result = result + " "
-            + std::string(instruction->getCalledFunction()->getName()) + "(";
+    if (calledName.compare(resultName) == 0 &&
+        instruction->getCalledFunction() != NULL) {
+        result = result + " (";
 
         for (unsigned int i = 1; i < instruction->getNumOperands(); i++) {
             if (i != 1) {
@@ -724,6 +744,28 @@ RocketShip::getCallInstructionLabel(CallInst* instruction)
     }
  
     return result;
+}
+
+std::string
+RocketShip::getSwitchInstLabel(SwitchInst* instruction)
+{
+    std::string label = instruction->getOpcodeName();
+
+    label = label + " " + getValueName(instruction->getCondition());
+
+    return label;
+}
+
+std::string
+RocketShip::getStoreInstLabel(StoreInst* instruction)
+{
+    std::string label = getValueName(instruction->getPointerOperand());
+
+    label = label + " := ";
+
+    label = label + getValueName(instruction->getOperand(0));
+
+    return label;
 }
 
 std::string
@@ -1220,7 +1262,7 @@ RocketShip::getLabelForNode(Instruction* instruction)
         if (branch->isConditional()) {
             result = getConditionalBranchLabel(branch);
         } else {
-            result = getUnconditionalBranchLabel(branch);
+            // Unconditional branches don't get displayed
         }
     }
     // Invoke Instructions

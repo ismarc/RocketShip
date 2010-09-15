@@ -35,6 +35,19 @@ namespace rocketship {
          */
         virtual bool runOnModule(Module &M);
 
+        /**
+         * LLVM bytecode typically gets compiled down using temporary
+         * Values (most 'things' derive from Value).  Temporary Values
+         * don't have a name associated with them.  Some operations,
+         * such as sext (sign extend) and load (load data from memory)
+         * and bitcast (convert types) don't alter the fundamental
+         * behavior or stored values.  This traverses the hierarchy
+         * of instructions until it finds a Value with a name.  If 
+         * an instruction that modifies values is encountered, it
+         * returns an empty string.
+         */
+        static std::string getValueName(Value* value);
+        
     private:
         /**
          * Generates the nodes and edges for the function and emits them to the
@@ -165,25 +178,12 @@ namespace rocketship {
                                         Node* currentNode,
                                         Instruction* instruction);
 
-        /**
-         * LLVM bytecode typically gets compiled down using temporary
-         * Values (most 'things' derive from Value).  Temporary Values
-         * don't have a name associated with them.  Some operations,
-         * such as sext (sign extend) and load (load data from memory)
-         * and bitcast (convert types) don't alter the fundamental
-         * behavior or stored values.  This traverses the hierarchy
-         * of instructions until it finds a Value with a name.  If 
-         * an instruction that modifies values is encountered, it
-         * returns an empty string.
-         */
-        std::string getValueName(Value* value);
         std::string getDemangledName(std::string name);
         std::string getLabelForNode(Instruction* instruction);
 
         std::string getCallInstructionLabel(CallInst* instruction);
-        std::string getUnconditionalBranchLabel(BranchInst* instruction) { return "";}
-        std::string getSwitchInstLabel(SwitchInst* instruction) { return "";}
-        std::string getStoreInstLabel(StoreInst* instruction) { return "";}
+        std::string getSwitchInstLabel(SwitchInst* instruction);
+        std::string getStoreInstLabel(StoreInst* instruction);
         /**
          * Stores the list of nodes to draw in the graph.  DOT file formats use a
          * labelling mechanism so the ordering of entries in _nodes doesn't matter.  This
@@ -192,7 +192,7 @@ namespace rocketship {
          * needed.
          */
         std::vector<Node*> _nodes;
-
+        std::vector<pNode> _pnodes;
         /**
          * Stores the list of blocks that have been processed for the
          * current function.

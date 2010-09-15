@@ -111,15 +111,6 @@ public:
      */
     void removeNodeEdge(Edge* edge);
     /**
-     * Add a connection between the Node and a BasicBlock.  An
-     * empty string is allowed, but only one block can be
-     * connected to with an empty label.
-     * @param block The BasicBlock that the Node connects to.
-     * @param label The label to place on the edge connecting the
-     * BasicBlock.
-     */
-    void addBlockEdge(llvm::BasicBlock* block, std::string label = "");
-    /**
      * Retrieve the mappings of labels to BasicBlocks to add
      * associated edges.
      * @return The mapping of labels to BasicBlocks this Node
@@ -137,7 +128,7 @@ private:
     std::string _nodeLabel;
     // Stores each Edge leading from the node.
     std::vector<Edge*> _edges;
-    std::map<std::string, llvm::BasicBlock*> _blockEdges;
+
     llvm::Instruction* _instruction;
 };
 
