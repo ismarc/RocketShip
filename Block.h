@@ -71,6 +71,7 @@ public:
      */
     void appendNode(pNode node);
 
+    int findEdge(llvm::BasicBlock* block, std::map<llvm::BasicBlock*, pBlock> blocks);
     void processNodes(std::map<llvm::BasicBlock*, pBlock> blocks);
 private:
     /**

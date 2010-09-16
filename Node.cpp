@@ -2,6 +2,7 @@
 #include "RocketShip.h"
 
 #include "llvm/Instructions.h"
+#include "llvm/Support/raw_ostream.h"
 
 Node::Node(int identifier, Type type) :
     _nodeId(identifier),
@@ -125,7 +126,7 @@ Node::getBlockEdges()
             result.insert(std::pair<std::string, llvm::BasicBlock*>("true", Dest2));
         } else {
             llvm::BasicBlock *Dest = llvm::dyn_cast<llvm::BasicBlock>(instruction->getOperand(0));
-            result.insert(std::pair<std::string, llvm::BasicBlock*>("", Dest));
+            result.insert(std::pair<std::string, llvm::BasicBlock*>("x", Dest));
         }
     }
     // Get Switch instruction edges
@@ -148,5 +149,6 @@ Node::getBlockEdges()
         result.insert(std::pair<std::string, llvm::BasicBlock*>("unwind", unwind));
         result.insert(std::pair<std::string, llvm::BasicBlock*>("", normal));
     }
+
     return result;
 }

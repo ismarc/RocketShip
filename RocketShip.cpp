@@ -94,7 +94,7 @@ RocketShip::processFunction(Function &F) {
         if ((*it) == NULL) {
             continue;
         }
-        
+
         emitNode(&(*(*it)));
     }
 
