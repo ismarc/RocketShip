@@ -51,11 +51,22 @@ namespace rocketship {
     private:
         /**
          * Generates the nodes and edges for the function and emits them to the
-         * output filestream.
+         * output filestream.  This processes a single function at a time.
          * @param F The function to process.
          */
         void processFunction(Function &F);
+        /**
+         * Generates the nodes and edges for a block.  This processes a single block
+         * at a time.
+         * @param bblock The LLVM representation of the block to process.
+         * @param block The internal representation of the block.
+         */
         void processBlock(BasicBlock* bblock, pBlock block);
+        /**
+         * Populates node data based on the supplied instruction.
+         * @param instruction The LLVM representation of the instruction to process.
+         * @param node The internal representation of a node to track.
+         */
         void processInstruction(Instruction* instruction, pNode node);
 
         /**
@@ -65,16 +76,48 @@ namespace rocketship {
          */
         void emitNode(Node* node);
 
-        std::string getConditionalBranchLabel(BranchInst* instruction);
-        std::string getInvokeInstLabel(InvokeInst* instruction);
-
-        std::string getDemangledName(std::string name);
+        /**
+         * Determines the string label to use for the supplied instruction.
+         * @param instruction The instruction to determine the label for.
+         */
         std::string getLabelForNode(Instruction* instruction);
-
+        /**
+         * Determines the appropriate label to display for a call instruction.
+         * @param instruction the call instruction to determine the label for.
+         */
         std::string getCallInstructionLabel(CallInst* instruction);
+        /**
+         * Determines the appropriate label to display for a switch instruction.
+         * @param instruction the switch instruction to determine the label for.
+         */
         std::string getSwitchInstLabel(SwitchInst* instruction);
+        /**
+         * Determines the appropriate label to display for a store isntruction.
+         * @param instruction the store instruction to determine the label for.
+         */
         std::string getStoreInstLabel(StoreInst* instruction);
+        /**
+         * Determines the appropriate label to display for a conditional branch
+         * instruction.
+         * @param instruction the branch instruction to determine the label for.
+         */
+        std::string getConditionalBranchLabel(BranchInst* instruction);
+        /**
+         * Determines the appropriate label to display for an invoke instruction.
+         * @param instruction The invoke instruction to determine the label for.
+         */
+        std::string getInvokeInstLabel(InvokeInst* instruction);
+        /**
+         * Converts a mangled (C++) symbol name to the unmangled version if it
+         * is a C++ mangled symbol name.  Otherwise, returns the supplied name
+         * unchanged.
+         * @param name The string to demangle.
+         */
+        std::string getDemangledName(std::string name);
 
+        /**
+         * Shared pointer collection of Node objects.
+         */
         std::vector<pNode> _pnodes;
 
         /**
@@ -83,7 +126,16 @@ namespace rocketship {
          * the next available integer id.
          */
         int _nodeId;
+        /**
+         * Stores the next id to use for a block.  Currently unused but would allow
+         * for grouping of blocks in the created graphs.
+         */
         int _blockId;
+        /**
+         * Stores the LLVM representation of blocks mapped to the internal
+         * representation of blocks.  Provides easy access for determining linkage
+         * between blocks.
+         */
         std::map<BasicBlock*, pBlock> _blocks;
         /**
          * The output filestream to send graph data to.
