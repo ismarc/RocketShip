@@ -71,7 +71,20 @@ public:
      */
     void appendNode(pNode node);
 
+    /**
+     * Determine the id of the first node in the chain associated with the supplied
+     * block that should be displayed.  This uses a recursive method to traverse
+     * subsequent blocks.
+     * @param block The LLVM block to use as a starting point
+     * @param blocks The map of LLVM blocks to internal blocks to traverse.
+     * @return The id of the first labelled node in the hierarchy starting at the
+     * supplied block.
+     */
     int findEdge(llvm::BasicBlock* block, std::map<llvm::BasicBlock*, pBlock> blocks);
+    /**
+     * Perform processing of the contained nodes to create appropriate edges.
+     * @param blocks The map of LLVM blockss to internal blocks for mapping edges.
+     */
     void processNodes(std::map<llvm::BasicBlock*, pBlock> blocks);
 private:
     /**
