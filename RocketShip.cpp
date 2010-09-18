@@ -391,6 +391,7 @@ RocketShip::getInvokeInstLabel(InvokeInst* instruction)
                 }
                 label = label + getValueName(instruction->getOperand(i));
             }
+            label = label + ")";
         }
     }
     
