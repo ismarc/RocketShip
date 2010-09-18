@@ -110,7 +110,9 @@ Block::processNodes(std::map<llvm::BasicBlock*, pBlock> blocks)
                  it != mapping.end();
                  it++) {
                 // Find the id for the edge that corresponds to the first node that
-                // would be displayed.
+                // would be displayed.  If the node has a label, it is
+                // the next id and the found edge is it's next id.
+                // Otherwise, the next id is the found edge.
                 int edgeId = findEdge(it->second, blocks);
                 if (_nodes[i]->getNodeLabel().length() > 0) {
                     char buffer[255];

@@ -52,13 +52,18 @@ RocketShip::runOnModule(Module &M)
 
 void
 RocketShip::processFunction(Function &F) {
+    // Everything is reset per function.  Ideally we would just make
+    // this a per-function pass, but extended feature plans make
+    // applying this at the module level a better idea.
     _nodeId = 0;
     _blockId = 0;
     _blocks.clear();
     _pnodes.clear();
     
     std::vector<BasicBlock*> blockList;
-    
+
+    // Each block in the function needs to be processed and added to
+    // the mapping.
     for (Function::iterator bblock = F.begin();
          bblock != F.end();
          bblock++) {
@@ -68,6 +73,8 @@ RocketShip::processFunction(Function &F) {
         processBlock(bblock, block);
     }
 
+    // Each block needs to process its contained nodes and we need to
+    // keep a local copy of each node for later processing.
     for (std::map<BasicBlock*, pBlock>::iterator it = _blocks.begin();
          it != _blocks.end();
          it++) {
@@ -80,6 +87,7 @@ RocketShip::processFunction(Function &F) {
         }
     }
 
+    // Generates the function name and filename/output stream.
     std::string functionIdentifier = F.getName();
     char* result = cplus_demangle(functionIdentifier.c_str(), DMGL_ANSI|DMGL_PARAMS);
 
@@ -87,7 +95,10 @@ RocketShip::processFunction(Function &F) {
     _outputFile.open(std::string(functionIdentifier + ".dot").c_str());
 
     _outputFile << "digraph " << functionIdentifier << " {\n";
-    
+
+    // Emit each node to the output stream.  This should be modified
+    // to have the node print itself out by passing in the output
+    // stream rather than calling a separate function
     for (Nodes::iterator it = _pnodes.begin();
          it != _pnodes.end();
          it++) {
@@ -95,7 +106,11 @@ RocketShip::processFunction(Function &F) {
             continue;
         }
 
-        emitNode(&(*(*it)));
+        // We only care about nodes with labels since they are what is
+        // actually presented.
+        if ((*it)->getNodeLabel().length() > 0) {
+            emitNode(&(*(*it)));
+        }
     }
 
     _outputFile << "}";
@@ -105,6 +120,8 @@ RocketShip::processFunction(Function &F) {
 void
 RocketShip::processBlock(BasicBlock* bblock, pBlock block)
 {
+    // Create a node for each instruction in the block and append it
+    // to the block.
     for (BasicBlock::iterator instruction = bblock->begin();
          instruction != bblock->end();
          instruction++) {
@@ -117,6 +134,7 @@ RocketShip::processBlock(BasicBlock* bblock, pBlock block)
 void
 RocketShip::processInstruction(Instruction* instruction, pNode node)
 {
+    // Assign the instruction and generate the node label.
     node->setInstruction(instruction);
     node->setNodeLabel(getLabelForNode(instruction));
 }
@@ -236,9 +254,14 @@ RocketShip::emitNode(Node* node)
 std::string
 RocketShip::getCallInstructionLabel(CallInst* instruction)
 {
+    // A call instruction is the execution of a function.  The final
+    // output format is:
+    // call <function name> (<operand 1>, <operand 2>, <operand 3>)
     std::string result = instruction->getOpcodeName();
     std::string calledName = "";
 
+    // Even if we are unable to get the called function, the function
+    // signature can be generated later on.
     if (instruction->getCalledFunction() != NULL) {
         calledName = instruction->getCalledFunction()->getName();
     }
@@ -247,6 +270,7 @@ RocketShip::getCallInstructionLabel(CallInst* instruction)
 
     result = result + " " + resultName;
 
+    // Append the arguments from the operands.
     if (calledName.compare(resultName) == 0 &&
         instruction->getCalledFunction() != NULL) {
         result = result + " (";
@@ -268,6 +292,8 @@ RocketShip::getCallInstructionLabel(CallInst* instruction)
 std::string
 RocketShip::getSwitchInstLabel(SwitchInst* instruction)
 {
+    // Switch instruction labels are handled solely by getValueName to
+    // determine the appropriate symbol that is checked.
     std::string label = instruction->getOpcodeName();
 
     label = label + " " + getValueName(instruction->getCondition());
@@ -278,6 +304,7 @@ RocketShip::getSwitchInstLabel(SwitchInst* instruction)
 std::string
 RocketShip::getStoreInstLabel(StoreInst* instruction)
 {
+    // Assignment/memory storage, uses := to indicate assignment.
     std::string label = getValueName(instruction->getPointerOperand());
 
     label = label + " := ";
@@ -368,6 +395,9 @@ RocketShip::getConditionalBranchLabel(BranchInst* instruction)
 std::string
 RocketShip::getInvokeInstLabel(InvokeInst* instruction)
 {
+    // Invoke instructions are identical to call instructions except
+    // that they can result in a branch if an exception is
+    // thrown/stack should unwind, etc.
     std::string label = "invoke";
     std::string calledName = "";
 
@@ -401,6 +431,11 @@ RocketShip::getInvokeInstLabel(InvokeInst* instruction)
 std::string
 RocketShip::getValueName(Value* value)
 {
+    // Recursively calls itself to resolve the base symbol represented
+    // by value.  This is due to the nature of LLVM having "unlimited"
+    // registers which results in not all Value's having associated
+    // names.  We assume that the first Value in the chain that has a
+    // name is the name we want to use.
     std::string result;
     
     if (value->hasName()) {
@@ -415,21 +450,32 @@ RocketShip::getValueName(Value* value)
     }
 
     if (CastInst* castInst = dyn_cast<CastInst>(&*value)) {
+        // Cast instructions get the value name of the base operand
         result = getValueName(castInst->getOperand(0));
     }
     else if (LoadInst* loadInst = dyn_cast<LoadInst>(&*value)) {
+        // Load instructions get the value name of the item pointed to
         result = getValueName(loadInst->getPointerOperand());
     }
     else if (SExtInst* sextInst = dyn_cast<SExtInst>(&*value)) {
+        // Sign extension instructions get the value name of the base operand.
         result = getValueName(sextInst->getOperand(0));
     }
     else if (ConstantInt* constant = dyn_cast<ConstantInt>(&*value)) {
+        // Constant int values get the integer constant as the name,
+        // in base-10.
         result = constant->getValue().toString(10, false);
     }
     else if (AllocaInst* allocaInst = dyn_cast<AllocaInst>(&*value)) {
+        // Allocation instructions get the string "description" of the type.
         result = allocaInst->getAllocatedType()->getDescription();
     }
     else if (GetElementPtrInst* gepInst = dyn_cast<GetElementPtrInst>(&*value)) {
+        // get element pointer instructions are used for dereferencing
+        // arrays and other index based data structures.  The pointer
+        // operand is used as the name with the value name of the
+        // index is used with C-like syntax:
+        // <pointer>[<index>]
         std::string value = getValueName(gepInst->getPointerOperand());
 
         std::string index = getValueName(gepInst->getOperand(gepInst->getNumIndices()));
@@ -437,6 +483,8 @@ RocketShip::getValueName(Value* value)
         result = value;
     }
     else if (BinaryOperator* binOp = dyn_cast<BinaryOperator>(&*value)) {
+        // Binary operators are mathematical operations that take two
+        // operands.  
         switch (binOp->getOpcode()) {
         case Instruction::SRem:
             result = getValueName(binOp->getOperand(0)) + " % "
@@ -459,12 +507,16 @@ RocketShip::getValueName(Value* value)
                 + getValueName(binOp->getOperand(1));
             break;
         default:
+            // An undefined binary operator instruction results in the
+            // operator name and then the two operands it uses.
             result = binOp->getOpcodeName();
             result = result + " " + getValueName(binOp->getOperand(0));
             result = result + " " + getValueName(binOp->getOperand(1));
         }
     }
 
+    // If we have not determined a result at this point, use the
+    // description of the value as the identifier.
     if (result.length() == 0) {
         result = value->getType()->getDescription();
     }
@@ -475,11 +527,16 @@ RocketShip::getValueName(Value* value)
 std::string
 RocketShip::getDemangledName(std::string name)
 {
+    // cplus_demangle returns a NULL pointer if the supplied string
+    // was not a mangled C++ identifier, or a string holding the
+    // demangled symbol.
     std::string result;
     char* demangled = cplus_demangle(name.c_str(), DMGL_ANSI|DMGL_PARAMS);
 
     if (demangled != NULL) {
         result = std::string(demangled);
+        // cplus_demangle allocates the memory and the caller is
+        // responsible for freeing the char*.
         free(demangled);
     } else {
         result = name;
@@ -551,7 +608,8 @@ RocketShip::getLabelForNode(Instruction* instruction)
     else if (StoreInst* store = dyn_cast<StoreInst>(&*instruction)) {
         result = getStoreInstLabel(store);
     }
-    // Default handling
+    // Default handling is:
+    // <instruction> <operand 1> <operand 2> <operand n>
     else {
         result = instruction->getOpcodeName();
 
