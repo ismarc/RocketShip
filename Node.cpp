@@ -144,9 +144,9 @@ Node::getBlockEdges()
     // Get Invoke instruction edges
     else if (llvm::InvokeInst* instruction = llvm::dyn_cast<llvm::InvokeInst>(&*_instruction)) {
         llvm::BasicBlock *normal = instruction->getNormalDest();
-        llvm::BasicBlock *unwind = instruction->getUnwindDest();
+        //llvm::BasicBlock *unwind = instruction->getUnwindDest();
 
-        result.insert(std::pair<std::string, llvm::BasicBlock*>("unwind", unwind));
+        //result.insert(std::pair<std::string, llvm::BasicBlock*>("unwind", unwind));
         result.insert(std::pair<std::string, llvm::BasicBlock*>("", normal));
     }
 
