@@ -62,6 +62,26 @@ RocketShip::processFunction(Function &F) {
     
     std::vector<BasicBlock*> blockList;
 
+    std::string functionLabel = F.getName();
+    std::string demangledLabel = getDemangledName(functionLabel);
+
+    if (demangledLabel == functionLabel ||
+        demangledLabel.length() == 0) {
+        functionLabel = F.getReturnType()->getDescription() + " " + functionLabel;
+        functionLabel = functionLabel + "(";
+        for (Function::arg_iterator arg = F.arg_begin();
+             arg != F.arg_end();
+             arg++) {
+            if (arg != F.arg_begin()) {
+                functionLabel = functionLabel + ", ";
+            }
+            functionLabel = functionLabel + arg->getType()->getDescription() + " " + std::string(arg->getName());
+        }
+        functionLabel = functionLabel + ")";
+    } else {
+        functionLabel = demangledLabel;
+    }
+
     // Each block in the function needs to be processed and added to
     // the mapping.
     for (Function::iterator bblock = F.begin();
@@ -70,6 +90,13 @@ RocketShip::processFunction(Function &F) {
         pBlock block(new Block(_nodeId++, bblock->getName()));
         _blocks.insert(std::pair<BasicBlock*, pBlock>(bblock, block));
         blockList.push_back(bblock);
+
+        if (bblock == F.begin()) {
+            pNode node(new Node(_nodeId++));
+            block->appendNode(node);
+            node->setNodeLabel(functionLabel);
+            node->setNodeType(Node::START);
+        }
         processBlock(bblock, block);
     }
 
