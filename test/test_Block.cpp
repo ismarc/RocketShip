@@ -121,3 +121,24 @@ TEST(BlockTest, FindEdgeRecursive)
     blocks.insert(std::pair<llvm::BasicBlock*, pBlock>(sbblock, sblock));
     ASSERT_EQ(1, fblock->findEdge(fbblock, blocks));
 }
+
+TEST(BlockTest, ProcessNodesContiguous)
+{
+    pBlock block(new Block(0));
+    pNode node_one(new Node(0));
+    pNode node_two(new Node(1));
+    pNode node_three(new Node(2));
+    std::map<llvm::BasicBlock*, pBlock> blocks;
+    node_one->setNodeLabel("node_one");
+    node_two->setNodeLabel("node_two");
+    node_three->setNodeLabel("node_three");
+    block->appendNode(node_one);
+    block->appendNode(node_two);
+    block->appendNode(node_three);
+    block->processNodes(blocks);
+    ASSERT_EQ(0, node_three->getNodeEdges().size());
+    ASSERT_EQ(1, node_two->getNodeEdges().size());
+    ASSERT_EQ(1, node_one->getNodeEdges().size());
+    ASSERT_EQ("1", node_one->getNodeEdges()[0]->getId());
+    ASSERT_EQ("2", node_two->getNodeEdges()[0]->getId());
+}
