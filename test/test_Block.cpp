@@ -128,14 +128,17 @@ TEST(BlockTest, ProcessNodesContiguous)
     pNode node_one(new Node(0));
     pNode node_two(new Node(1));
     pNode node_three(new Node(2));
+    pNode node_four(new Node(3));
     std::map<llvm::BasicBlock*, pBlock> blocks;
     node_one->setNodeLabel("node_one");
     node_two->setNodeLabel("node_two");
     node_three->setNodeLabel("node_three");
     block->appendNode(node_one);
     block->appendNode(node_two);
+    block->appendNode(node_four);
     block->appendNode(node_three);
     block->processNodes(blocks);
+    ASSERT_EQ(0, node_four->getNodeEdges().size());
     ASSERT_EQ(0, node_three->getNodeEdges().size());
     ASSERT_EQ(1, node_two->getNodeEdges().size());
     ASSERT_EQ(1, node_one->getNodeEdges().size());
