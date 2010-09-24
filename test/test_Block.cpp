@@ -145,3 +145,42 @@ TEST(BlockTest, ProcessNodesContiguous)
     ASSERT_EQ("1", node_one->getNodeEdges()[0]->getId());
     ASSERT_EQ("2", node_two->getNodeEdges()[0]->getId());
 }
+
+TEST(BlockTest, ProcessNodesBlockEdges)
+{
+    // Block 1 -> unconditional branch to bblock 1, with label
+    // Block 2 -> unconditional branch to bblock 2, no label
+    // Block 3 -> blank node with label
+    pBlock block_one(new Block(0));
+    pBlock block_two(new Block(1));
+    pBlock block_three(new Block(2));
+    pNode node_one(new Node(0));
+    pNode node_two(new Node(1));
+    pNode node_three(new Node(2));
+
+    llvm::LLVMContext context;
+    llvm::BasicBlock* bblock_one = llvm::BasicBlock::Create(context);
+    llvm::BasicBlock* bblock_two = llvm::BasicBlock::Create(context);
+    llvm::BranchInst* instruction_one = llvm::BranchInst::Create(bblock_one);
+    llvm::BranchInst* instruction_two = llvm::BranchInst::Create(bblock_two);
+
+    node_one->setInstruction(instruction_one);
+    node_one->setNodeLabel("node_one");
+    node_two->setInstruction(instruction_two);
+    node_three->setNodeLabel("node_three");
+    block_one->appendNode(node_one);
+    block_two->appendNode(node_two);
+    block_three->appendNode(node_three);
+
+    std::map<llvm::BasicBlock*, pBlock> blocks;
+    blocks.insert(std::pair<llvm::BasicBlock*, pBlock>(bblock_one, block_two));
+    blocks.insert(std::pair<llvm::BasicBlock*, pBlock>(bblock_two, block_three));
+    block_one->processNodes(blocks);
+    block_two->processNodes(blocks);
+    block_three->processNodes(blocks);
+
+    ASSERT_EQ(1, node_one->getNodeEdges().size());
+    ASSERT_EQ("2", node_one->getNodeEdges()[0]->getId());
+    ASSERT_EQ(0, node_two->getNodeEdges().size());
+    ASSERT_EQ(0, node_three->getNodeEdges().size());
+}
